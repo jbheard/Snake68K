@@ -1,0 +1,423 @@
+00001000 Starting Address
+Assembler used: EASy68K Editor/Assembler v5.15.04
+Created On: 1/8/2017 12:50:36 AM
+
+00000000                             1  *-----------------------------------------------------------
+00000000                             2  * Title      : Snake game
+00000000                             3  * Written by : Jacob Heard
+00000000                             4  * Date       : 1/3/2017
+00000000                             5  * Description: A simple snake game written in 68000 assembly
+00000000                             6  *
+00000000                             7  * NOTES:
+00000000                             8  *   D4 stores the direction of the snake
+00000000                             9  *   D5 stores the length of the snake
+00000000                            10  *   D6 is the game timer (100ths of a second, from TRAP)
+00000000                            11  *   D7 is the apple position ($00xx $00yy)
+00000000                            12  *
+00000000                            13  * TODO
+00000000                            14  *   - Running into last link of tail does not kill snake
+00000000                            15  *   - Tail pieces not adding in correct position, appear as 
+00000000                            16  *       black boxes for a single frame somewhere on screen
+00000000                            17  *   - Add score
+00000000                            18  *   - Optimize?
+00000000                            19  *-----------------------------------------------------------
+00001000                            20      ORG    $1000
+00001000                            21  
+00001000                            22  ****************************
+00001000                            23  * Beginning of the program *
+00001000                            24  ****************************
+00001000                            25  START:          ; First instruction of program
+00001000  4EB9 000016A8             26      JSR INIT    ; Init the program
+00001006                            27  SLOOP:
+00001006  4EB9 000016DA             28      JSR MAIN    ; Call main loop
+0000100C  60F8                      29      BRA SLOOP
+0000100E                            30      
+0000100E  FFFF FFFF                 31      SIMHALT     ; Halt simulator
+00001012                            32      
+00001012                            33      * Include graphics library
+00001012                            34      INCLUDE 'graphics.X68'
+00001012                            35  
+00001012  =00000280                 36  SB_W    EQU 640
+00001012  =000001E0                 37  SB_H    EQU 480
+00001012  =00000014                 38  WIDTH   EQU SB_W/$20
+00001012  =0000000F                 39  HEIGHT  EQU SB_H/$20
+00001012                            40  
+00001012  =00FFFFFF                 41  WHITE   EQU $00FFFFFF
+00001012  =00FF0000                 42  BLUE    EQU $00FF0000
+00001012  =0000FF00                 43  GREEN   EQU $0000FF00
+00001012  =000000FF                 44  RED     EQU $000000FF
+00001012  =00000000                 45  BLACK   EQU $00000000
+00001012                            46  
+00001012                            47  
+00001012  48E7 B800                 48  SC_CLR MOVEM.L D0/D2-D4, -(SP)  ; Move D0-D4/A0 to stack
+00001016  7050                      49      MOVE.L      #80, D0
+00001018  4E4F                      50      TRAP        #15         ; Set pen color
+0000101A  7051                      51      MOVE.L      #81, D0
+0000101C  4E4F                      52      TRAP        #15         ; Set fill color
+0000101E                            53  
+0000101E  7200                      54      MOVE.L      #00, D1     ; Set (x1, y1) to (0, 0)
+00001020  7400                      55      MOVE.L      #00, D2
+00001022  263C 00000280             56      MOVE.L      #SB_W, D3   ; Set (x2, y2) to (width, height)
+00001028  283C 000001E0             57      MOVE.L      #SB_H, D4
+0000102E  7057                      58      MOVE.L      #87, D0     ; Set trap task ##
+00001030  4E4F                      59      TRAP        #15         ; Fill screen
+00001032                            60  
+00001032  4CDF 001D                 61      MOVEM.L (SP)+,D0/D2-D4  ; Restore registers
+00001036  4E75                      62      RTS                     ; Return
+00001038                            63  
+00001038  48E7 F800                 64  SC_DRAWRECT MOVEM.L D0-D4, -(SP)
+0000103C  7050                      65      MOVE.L      #80, D0
+0000103E  4E4F                      66      TRAP        #15     ; Set pen color
+00001040  7051                      67      MOVE.L      #81, D0
+00001042  4E4F                      68      TRAP        #15     ; Set fill color
+00001044                            69      
+00001044  4842                      70      SWAP        D2
+00001046  3202                      71      MOVE.W      D2, D1  ; MV  x->D1
+00001048  343C 0000                 72      MOVE.W      #00, D2 ; Clear lower word
+0000104C  4842                      73      SWAP        D2      ; SET y->D2
+0000104E                            74      
+0000104E  3803                      75      MOVE.W      D3, D4  ; MV  h->D4
+00001050  363C 0000                 76      MOVE.W      #00, D3 ; Clear lower word
+00001054  4843                      77      SWAP        D3      ; SET w->D3
+00001056                            78      
+00001056                            79      * Adjust values
+00001056  C2C3                      80      MULU.W      D3, D1
+00001058  C4C4                      81      MULU.W      D4, D2
+0000105A  D681                      82      ADD.L       D1, D3 
+0000105C  D882                      83      ADD.L       D2, D4
+0000105E                            84      
+0000105E  7057                      85      MOVE.L      #87, D0 ; Set trap task
+00001060  4E4F                      86      TRAP        #15     ; Fill rect
+00001062                            87      
+00001062  4CDF 001F                 88      MOVEM.L  (SP)+, D0-D4 ; Restore registers
+00001066  4E75                      89      RTS                 ; Return
+00001068                            90  
+00001068                            91  
+00001068                            92  
+00001068                            93  
+00001068                            94  
+00001068                            95  
+00001068                            96  
+00001068                            97  -------------------- end include --------------------
+00001068                            98      * Include snake subroutines
+00001068                            99      INCLUDE 'snake_h.X68'
+00001068                           100  
+00001068                           101  snake   DS.L    400
+000016A8  =0000000F                102  FPS     EQU     15
+000016A8                           103  
+000016A8                           104  INIT
+000016A8  7008                     105      MOVE.L  #08, D0
+000016AA  4E4F                     106      TRAP    #15
+000016AC  2C01                     107      MOVE.L  D1, D6      ; Set timer
+000016AE                           108  
+000016AE  223C 00FFFFFF            109      MOVE.L  #WHITE, D1
+000016B4  4EB8 1012                110      JSR     SC_CLR      ; Clear screen
+000016B8  263C 00200020            111      MOVE.L  #$00200020, D3 ; Set width/height to $20
+000016BE                           112      
+000016BE  7A02                     113      MOVE.L  #02, D5     ; Use D5 for length of snake
+000016C0  41F8 1068                114      LEA snake, A0       ; Load address of snake
+000016C4  20FC 000A000D            115      MOVE.L  #$000A000D, (A0)+ ; Load snake head
+000016CA  20FC 000A000E            116      MOVE.L  #$000A000E, (A0)+ ; Load snake tail
+000016D0                           117      
+000016D0  7808                     118      MOVE.L  #%1000, D4  ; Set initial direction up
+000016D2                           119      
+000016D2  4EB9 00001766            120      JSR     SET_APPLE   ; Set the first apple
+000016D8  4E75                     121      RTS                 ; Return
+000016DA                           122  
+000016DA                           123  MAIN
+000016DA  48E7 F080                124      MOVEM.L D0-D3/A0, -(SP) ; Store registers
+000016DE  4EB9 000017A2            125      JSR     READ_INPUT  ; Read data from keyboard
+000016E4  4EB9 0000186C            126      JSR     MOVE_SNAKE  ; Move the snake for the next iteration
+000016EA  4EB9 00001818            127      JSR     CHK_GO
+000016F0                           128  
+000016F0  223C 00FFFFFF            129      MOVE.L  #WHITE, D1
+000016F6  4EB8 1012                130      JSR     SC_CLR      ; Clear the screen
+000016FA                           131      
+000016FA  223C 000000FF            132      MOVE.L  #RED, D1    ; Set apple color
+00001700  2407                     133      MOVE.L  D7, D2      ; Set apple position
+00001702  4EB8 1038                134      JSR     SC_DRAWRECT ; Draw the apple
+00001706                           135      
+00001706  41F8 1068                136      LEA snake, A0       ; Load snake into A0
+0000170A  2005                     137      MOVE.L  D5,D0       ; Set counter
+0000170C  7200                     138      MOVE.L  #BLACK, D1
+0000170E                           139  MAINLOOP:   ; Draw the snake
+0000170E  2418                     140      MOVE.L  (A0)+, D2   ; Set position of block
+00001710  4EB8 1038                141      JSR     SC_DRAWRECT ; Draw block
+00001714  5380                     142      SUBI.L  #1, D0      ; Decrement counter
+00001716  6EF6                     143      BGT     MAINLOOP    ; Continue iff not done
+00001718                           144      
+00001718  7008                     145      MOVE.L  #08, D0     ; Set trap task
+0000171A                           146  TICK:   ; Delay between frames so that a human can play
+0000171A  4E4F                     147      TRAP    #15         ; Get time
+0000171C  9286                     148      SUB.L   D6, D1      ; Subtract last time from current time
+0000171E  0481 0000000F            149      SUBI.L  #FPS, D1     ; Subtract another 250 milliseconds
+00001724  6FF4                     150      BLE     TICK        ; loop if not enough time has passed
+00001726                           151      
+00001726  4E4F                     152      TRAP #15            ; Get time
+00001728  2C01                     153      MOVE.L  D1, D6      ; Store time for next iteration
+0000172A                           154      
+0000172A  4CDF 010F                155      MOVEM.L (SP)+, D0-D3/A0 ; Restore registers
+0000172E  4E75                     156      RTS                 ; Return
+00001730                           157  
+00001730                           158  MOD
+00001730  48E7 A000                159      MOVEM.L D0/D2,-(SP)
+00001734  2401                     160      MOVE.L  D1,D2
+00001736                           161  
+00001736  B280                     162      CMP.L   D0,D1
+00001738  6500 0002                163      BCS     MODLOOP1
+0000173C                           164  MODLOOP1:
+0000173C  E381                     165      ASL.L   #1,D1     ; D1 << 1
+0000173E  B280                     166      CMP.L   D0,D1
+00001740  65FA                     167      BCS     MODLOOP1    ; D1 < D0, continue
+00001742                           168  
+00001742                           169  MODLOOP2:
+00001742  B081                     170      CMP.L   D1,D0
+00001744  6400 000C                171      BCC     MODSUB
+00001748  B282                     172      CMP.L   D2,D1
+0000174A  6300 0012                173      BLS     MODEND
+0000174E  6000 000A                174      BRA     MODSHIFT
+00001752                           175  MODSUB:
+00001752  9081                     176      SUB.L   D1,D0
+00001754  B282                     177      CMP.L   D2,D1
+00001756  6700 0006                178      BEQ     MODEND
+0000175A                           179  MODSHIFT:
+0000175A  E289                     180      LSR.L   #1,D1       ; D1 >> 1
+0000175C  60E4                     181      BRA     MODLOOP2    ; D0 < D1
+0000175E                           182  
+0000175E                           183  MODEND:
+0000175E  2200                     184      MOVE.L  D0,D1   ; Move result
+00001760  4CDF 0005                185      MOVEM.L (SP)+,D0/D2 ; Restore registers
+00001764  4E75                     186      RTS
+00001766                           187  
+00001766                           188  SET_APPLE
+00001766  48E7 C000                189      MOVEM.L D0/D1, -(SP)
+0000176A                           190      
+0000176A  7008                     191      MOVE.L  #08, D0
+0000176C  4E4F                     192      TRAP    #15     ; Get the time for randomness
+0000176E  2001                     193      MOVE.L  D1,D0
+00001770                           194  
+00001770  0A80 00AC8337            195      EOR.L   #$AC8337, D0 ; Randomize the number
+00001776  C0BC 0FFFFFFF            196      AND.L   #$0FFFFFFF,D0
+0000177C  7213                     197      MOVE.L  #WIDTH-1, D1
+0000177E  4EB8 1730                198      JSR     MOD
+00001782  3E01                     199      MOVE.W  D1, D7
+00001784  4847                     200      SWAP    D7      ; Put in the correct spot
+00001786                           201  
+00001786                           202      * Rinse and repeat
+00001786  4840                     203      SWAP    D0
+00001788  0A80 00FFABC3            204      EOR.L   #$FFABC3, D0 ; Sorta randomize the number
+0000178E  C0BC 0FFFFFFF            205      AND.L   #$0FFFFFFF,D0
+00001794  720E                     206      MOVE.L  #HEIGHT-1,D1 ; Map to height
+00001796  4EB8 1730                207      JSR     MOD
+0000179A  3E01                     208      MOVE.W  D1, D7  ; Put in the correct spot
+0000179C                           209     
+0000179C  4CDF 0003                210      MOVEM.L (SP)+, D0/D1 ; Restore registers
+000017A0  4E75                     211      RTS
+000017A2                           212  
+000017A2  48E7 C000                213  READ_INPUT  MOVEM.L D0/D1,-(SP)
+000017A6  7007                     214      MOVE.L  #07, D0 ; Set trap code
+000017A8  4E4F                     215      TRAP    #15     ; Check for pending input
+000017AA  B23C 0001                216      CMP.B   #1,D1
+000017AE  6600 0062                217      BNE READEND     ; Exit if no pending data
+000017B2                           218      
+000017B2  7005                     219      MOVE.L  #05,D0  ; Set trap code
+000017B4  4E4F                     220      TRAP    #15     ; Read character
+000017B6                           221  
+000017B6  B23C 0041                222      CMP.B #$41,D1 ; A (ucase)
+000017BA  6700 003E                223      BEQ APRESS
+000017BE  B23C 0061                224      CMP.B #$61,D1 ; a (lcase)
+000017C2  6700 0036                225      BEQ APRESS
+000017C6                           226      
+000017C6  B23C 0053                227      CMP.B #$53,D1 ; S (ucase)
+000017CA  6700 0034                228      BEQ SPRESS
+000017CE  B23C 0073                229      CMP.B #$73,D1 ; s (lcase)
+000017D2  6700 002C                230      BEQ SPRESS
+000017D6                           231      
+000017D6  B23C 0044                232      CMP.B #$44,D1 ; D (ucase)
+000017DA  6700 002A                233      BEQ DPRESS
+000017DE  B23C 0064                234      CMP.B #$64,D1 ; d (lcase)
+000017E2  6700 0022                235      BEQ DPRESS
+000017E6                           236      
+000017E6  B23C 0057                237      CMP.B #$57,D1 ; W (ucase)
+000017EA  6700 0020                238      BEQ WPRESS
+000017EE  B23C 0077                239      CMP.B #$77,D1 ; w (lcase)
+000017F2  6700 0018                240      BEQ WPRESS
+000017F6                           241      
+000017F6  6000 001A                242      BRA READEND ; No match
+000017FA                           243      
+000017FA                           244  APRESS:     ; LEFT 
+000017FA  7802                     245      MOVE.L  #%0010, D4
+000017FC  6000 0014                246      BRA READEND
+00001800                           247  SPRESS:     ; DOWN
+00001800  7804                     248      MOVE.L  #%0100, D4
+00001802  6000 000E                249      BRA READEND
+00001806                           250  DPRESS:     ; RIGHT
+00001806  7801                     251      MOVE.L  #%0001, D4
+00001808  6000 0008                252      BRA READEND
+0000180C                           253  WPRESS:     ; UP
+0000180C  7808                     254      MOVE.L  #%1000, D4
+0000180E  6000 0002                255      BRA READEND
+00001812                           256  
+00001812                           257  READEND:
+00001812  4CDF 0003                258      MOVEM.L (SP)+,D0/D1
+00001816  4E75                     259      RTS
+00001818                           260  
+00001818  48E7 E080                261  CHK_GO  MOVEM.L D0-D2/A0,-(SP)
+0000181C  41F8 1068                262      LEA snake,A0
+00001820  2210                     263      MOVE.L  (A0),D1
+00001822                           264  
+00001822  B27C 000F                265      CMP.W   #HEIGHT,D1
+00001826  6700 003A                266      BEQ     GAMEOVER
+0000182A  B27C 0000                267      CMP.W   #00,D1
+0000182E  6D00 0032                268      BLT     GAMEOVER
+00001832                           269      
+00001832  4841                     270      SWAP    D1
+00001834  B27C 0014                271      CMP.W   #WIDTH,D1
+00001838  6700 0028                272      BEQ     GAMEOVER
+0000183C  B27C 0000                273      CMP.W   #00,D1
+00001840  6D00 0020                274      BLT     GAMEOVER    
+00001844  4841                     275      SWAP    D1
+00001846                           276      
+00001846  41F8 1068                277      LEA     snake, A0
+0000184A  2210                     278      MOVE.L  (A0),D1
+0000184C                           279      
+0000184C  7001                     280      MOVE.L  #01,D0  ; Set counter
+0000184E  5888                     281      ADD.L   #4,A0   ; Start at snake[1]
+00001850                           282  CHK_GOLOOP:
+00001850  2418                     283      MOVE.L  (A0)+,D2
+00001852  B481                     284      CMP.L   D1,D2   ; Do comparison
+00001854  6700 000C                285      BEQ     GAMEOVER ; Run into own tail
+00001858  5280                     286      ADDQ.L  #1,D0   ; Increment counter
+0000185A  BA80                     287      CMP.L   D0,D5   ; Test counter
+0000185C  66F2                     288      BNE CHK_GOLOOP
+0000185E                           289      
+0000185E  6000 0006                290      BRA CHK_GOEND   ; All good
+00001862                           291  
+00001862                           292  GAMEOVER:
+00001862  4EB8 16A8                293          JSR INIT    ; Reset everything
+00001866                           294  CHK_GOEND:
+00001866  4CDF 0107                295          MOVEM.L (SP)+,D0-D2/A0 ; Restore registers
+0000186A  4E75                     296          RTS
+0000186C                           297  
+0000186C  48E7 C0E0                298  MOVE_SNAKE  MOVEM.L D0/D1/A0-A2,-(SP)
+00001870  41F8 1068                299      LEA     snake, A0
+00001874  43F8 1068                300      LEA     snake, A1
+00001878  2210                     301      MOVE.L  (A0),D1 ; Store snake head in D1 for now
+0000187A  2005                     302      MOVE.L  D5, D0  ; Load length into D0
+0000187C  C0FC 0004                303      MULU.W  #4, D0  ; Calculate number of bytes in snakes
+00001880  D1C0                     304      ADD.L   D0, A0  ; Increment snake counter to tail
+00001882  D3C0                     305      ADD.L   D0, A1
+00001884  5988                     306      SUB.L   #4, A0
+00001886  2005                     307      MOVE.L  D5, D0  ; Set counter
+00001888  5380                     308      SUBI.L  #1, D0  ; Go to length-1
+0000188A                           309      
+0000188A  45F8 1068                310      LEA     snake,A2
+0000188E  BE92                     311      CMP.L   (A2),D7
+00001890  6600 0012                312      BNE     MOVELOOP    ; Continue if we didn't collect an apple
+00001894                           313      * If we got an apple
+00001894  5485                     314      ADDI.L  #2,D5   ; increment length
+00001896  5480                     315      ADDI.L  #2,D0   ; increment counter
+00001898  32D0                     316      MOVE    (A0),(A1)+ ; Add tail joint
+0000189A  3298                     317      MOVE    (A0)+,(A1)
+0000189C  5888                     318      ADD.L   #4,A0   ; Adjust address 0
+0000189E  5889                     319      ADD.L   #4,A1   ; Adjust address 1
+000018A0  4EB8 1766                320      JSR     SET_APPLE   ; Create new apple
+000018A4                           321  
+000018A4                           322  MOVELOOP:
+000018A4  2320                     323      MOVE.L  -(A0),-(A1)
+000018A6  5380                     324      SUBI.L  #1, D0      ; Decrement the counter
+000018A8  6EFA                     325      BGT MOVELOOP
+000018AA                           326  
+000018AA                           327      * Switch-case in assembly
+000018AA  B83C 0008                328      CMP.B #%1000, D4    ; UP %1000
+000018AE  6700 001E                329      BEQ UP
+000018B2  B83C 0004                330      CMP.B #%0100, D4    ; DOWN %0100
+000018B6  6700 001C                331      BEQ DOWN
+000018BA  B83C 0002                332      CMP.B #%0010, D4    ; LEFT %0010
+000018BE  6700 001A                333      BEQ LEFT
+000018C2  B83C 0001                334      CMP.B #%0001, D4    ; RIGHT %0001
+000018C6  6700 001C                335      BEQ RIGHT
+000018CA                           336      
+000018CA  6000 001E                337      BRA MOVEEND     ; Pause or error
+000018CE                           338  
+000018CE                           339  UP:
+000018CE  5341                     340      SUBI.W  #1, D1
+000018D0  6000 0018                341      BRA MOVEEND
+000018D4                           342  DOWN:
+000018D4  5241                     343      ADDI.W  #1, D1
+000018D6  6000 0012                344      BRA MOVEEND
+000018DA                           345  LEFT:
+000018DA  4841                     346      SWAP    D1
+000018DC  5341                     347      SUBI.W  #1, D1
+000018DE  4841                     348      SWAP    D1
+000018E0  6000 0008                349      BRA MOVEEND
+000018E4                           350  RIGHT:
+000018E4  4841                     351      SWAP    D1
+000018E6  5241                     352      ADDI.W  #1, D1
+000018E8  4841                     353      SWAP    D1
+000018EA                           354  
+000018EA                           355  MOVEEND:
+000018EA  41F8 1068                356      LEA     snake,A0
+000018EE  2081                     357      MOVE.L  D1,(A0)
+000018F0  4CDF 0703                358      MOVEM.L (SP)+, D0/D1/A0-A2 ; Restore registers
+000018F4  4E75                     359      RTS
+000018F6                           360  
+000018F6                           361  
+000018F6                           362  
+000018F6                           363  
+000018F6                           364  
+000018F6                           365  
+000018F6                           366  
+000018F6                           367  -------------------- end include --------------------
+000018F6                           368      END    START        ; last line of source
+
+No errors detected
+No warnings generated
+
+
+SYMBOL TABLE INFORMATION
+Symbol-name         Value
+-------------------------
+APRESS              17FA
+BLACK               0
+BLUE                FF0000
+CHK_GO              1818
+CHK_GOEND           1866
+CHK_GOLOOP          1850
+DOWN                18D4
+DPRESS              1806
+FPS                 F
+GAMEOVER            1862
+GREEN               FF00
+HEIGHT              F
+INIT                16A8
+LEFT                18DA
+MAIN                16DA
+MAINLOOP            170E
+MOD                 1730
+MODEND              175E
+MODLOOP1            173C
+MODLOOP2            1742
+MODSHIFT            175A
+MODSUB              1752
+MOVEEND             18EA
+MOVELOOP            18A4
+MOVE_SNAKE          186C
+READEND             1812
+READ_INPUT          17A2
+RED                 FF
+RIGHT               18E4
+SB_H                1E0
+SB_W                280
+SC_CLR              1012
+SC_DRAWRECT         1038
+SET_APPLE           1766
+SLOOP               1006
+SNAKE               1068
+SPRESS              1800
+START               1000
+TICK                171A
+UP                  18CE
+WHITE               FFFFFF
+WIDTH               14
+WPRESS              180C
